@@ -1,0 +1,9 @@
+# Secrets (ngrok token, DB password). Use env.example as the template.
+.env
+
+# Your real candidate profile (master_profile.json in the repo is a placeholder template)
+files/master_profile.private.json
+
+# Generated tailored CVs and test files (contain personal contact details)
+files/cvs/*
+!files/cvs/.gitkeep

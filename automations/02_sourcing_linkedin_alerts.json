@@ -1,0 +1,80 @@
+{
+  "name": "Job Copilot - 02 Sourcing (LinkedIn alerts)",
+  "nodes": [
+    {
+      "parameters": {
+        "mailbox": "LinkedIn Alerts",
+        "postProcessAction": "read",
+        "format": "simple",
+        "options": {}
+      },
+      "id": "b1",
+      "name": "LinkedIn alert email",
+      "type": "n8n-nodes-base.emailReadImap",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parses LinkedIn job alert emails (plain-text part) into clean job rows.\n// Tracking parameters and login tokens are removed from every link.\nconst HEADER = /^(your job alert for|\\d+\\+? new jobs? match|new jobs? match|jobs you may be interested in)/i;\n\nconst jobs = [];\n\nfor (const item of $input.all()) {\n  const text = item.json.textPlain || item.json.text || '';\n  const chunks = text.split(/\\n\\s*-{10,}\\s*\\n/);\n\n  for (const chunk of chunks) {\n    const m = chunk.match(/View job:\\s*(\\S+)/i);\n    if (!m) continue;\n    const idMatch = m[1].match(/jobs\\/view\\/(\\d+)/);\n    if (!idMatch) continue;\n    const jobId = idMatch[1];\n\n    const lines = chunk\n      .slice(0, m.index)\n      .split('\\n')\n      .map(l => l.trim())\n      .filter(l => l && !HEADER.test(l));\n\n    if (lines.length < 3) continue;\n    const [title, company, rawLocation] = lines;\n\n    let work_mode = 'unknown';\n    if (/remote/i.test(rawLocation)) work_mode = 'remote';\n    else if (/hybrid|h[ií]brido/i.test(rawLocation)) work_mode = 'hybrid';\n    else if (/on-?site|presencial/i.test(rawLocation)) work_mode = 'onsite';\n\n    const location = rawLocation.replace(/\\s*\\((remote|hybrid|on-?site|remoto|h[ií]brido|presencial)\\)\\s*/i, '').trim();\n\n    jobs.push({\n      external_id: jobId,\n      title,\n      company,\n      location,\n      work_mode,\n      url: `https://www.linkedin.com/jobs/view/${jobId}/`,\n      description: null,\n      posted_at: item.json.date ? new Date(item.json.date).toISOString() : null,\n      publisher: 'LinkedIn',\n      salary_min: null,\n      salary_max: null,\n      salary_currency: null,\n      salary_period: null,\n    });\n  }\n}\n\nreturn [{ json: { jobs, fetched: jobs.length } }];\n"
+      },
+      "id": "b2",
+      "name": "Parse jobs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH incoming AS (\n  SELECT *\n  FROM jsonb_to_recordset($1::jsonb) AS x(\n    external_id text, title text, company text, location text, work_mode text,\n    url text, description text, posted_at timestamptz, publisher text,\n    salary_min numeric, salary_max numeric, salary_currency text, salary_period text\n  )\n)\nINSERT INTO jobs (\n  job_hash, source, external_id, title, company, location, work_mode, url,\n  description, posted_at, publisher, salary_min, salary_max, salary_currency, salary_period\n)\nSELECT\n  md5(lower(trim(company)) || '|' || lower(trim(title)) || '|' || lower(coalesce(trim(location), ''))),\n  'linkedin_alert', external_id, title, company, location, work_mode, url,\n  description, posted_at, publisher, salary_min, salary_max, salary_currency, salary_period\nFROM incoming\nON CONFLICT (job_hash) DO NOTHING\nRETURNING id, title, company, publisher;",
+        "options": {
+          "queryReplacement": "={{ [ JSON.stringify($json.jobs) ] }}"
+        }
+      },
+      "id": "b3",
+      "name": "Save new jobs",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        480,
+        0
+      ],
+      "alwaysOutputData": true
+    }
+  ],
+  "connections": {
+    "LinkedIn alert email": {
+      "main": [
+        [
+          {
+            "node": "Parse jobs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse jobs": {
+      "main": [
+        [
+          {
+            "node": "Save new jobs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Bogota"
+  }
+}

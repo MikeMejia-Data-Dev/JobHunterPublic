@@ -1,0 +1,191 @@
+{
+  "name": "Job Copilot - 05 Daily review (Telegram)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "30 8,19 * * *"
+            }
+          ]
+        }
+      },
+      "id": "f1",
+      "name": "8:30 and 19:30",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, title, company, location, work_mode, url, match_score, matched_skills,\n       missing_skills, red_flags, match_reasoning, score_confidence, language,\n       cv_file_name, tailored_cv->'checks' AS checks\nFROM jobs\nWHERE status = 'tailored' AND cv_file_name IS NOT NULL\nORDER BY match_score DESC\nLIMIT 10;",
+        "options": {}
+      },
+      "id": "f2",
+      "name": "Get tailored jobs",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Builds the Telegram caption for each tailored job.\n// CHAT_ID: your Telegram chat ID (see setup instructions).\nconst CHAT_ID = 'YOUR_CHAT_ID';\n\nconst esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\nconst list = a => (Array.isArray(a) && a.length ? a.slice(0, 6).join(', ') : '—');\nconst MODE = { remote: '🌎 Remote', hybrid: '🏢 Hybrid', onsite: '🏢 On-site', unknown: '' };\n\nreturn $input.all().map(item => {\n  const j = item.json;\n  const checks = Array.isArray(j.checks) ? j.checks : [];\n  let caption = [\n    `<b>${esc(j.title)}</b> — ${esc(j.company)}`,\n    `📍 ${esc(j.location ?? '?')} ${MODE[j.work_mode] ?? ''}`,\n    `⭐ Score: <b>${j.match_score}</b>/100${j.score_confidence === 'title_only' ? ' (title only)' : ''} · 🗣 ${esc((j.language ?? '?').toUpperCase())}`,\n    ``,\n    `✅ ${esc(list(j.matched_skills))}`,\n    `➖ Missing: ${esc(list(j.missing_skills))}`,\n    j.red_flags?.length ? `⚠️ ${esc(list(j.red_flags))}` : null,\n    ``,\n    `💬 ${esc(j.match_reasoning ?? '')}`,\n    checks.length ? `\\n🔍 Review fixed: ${esc(checks.slice(0, 3).join('; '))}` : null,\n    `\\n🆔 Job ${j.id}`,\n  ].filter(x => x !== null).join('\\n');\n  if (caption.length > 1000) caption = caption.slice(0, 990) + '…';   // Telegram caption limit: 1024\n\n  return { json: { chat_id: CHAT_ID, job_id: j.id, caption, cv_file_name: j.cv_file_name } };\n});\n"
+      },
+      "id": "f3",
+      "name": "Build caption",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "fileSelector": "=/home/node/.n8n-files/cvs/{{ $json.cv_file_name }}",
+        "options": {
+          "dataPropertyName": "data"
+        }
+      },
+      "id": "f4",
+      "name": "Read CV PDF",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        660,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "sendDocument",
+        "chatId": "={{ $('Build caption').item.json.chat_id }}",
+        "binaryData": true,
+        "binaryPropertyName": "data",
+        "replyMarkup": "inlineKeyboard",
+        "inlineKeyboard": {
+          "rows": [
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "✅ Apply",
+                    "additionalFields": {
+                      "callback_data": "=apply:{{ $('Build caption').item.json.job_id }}"
+                    }
+                  },
+                  {
+                    "text": "❌ Skip",
+                    "additionalFields": {
+                      "callback_data": "=skip:{{ $('Build caption').item.json.job_id }}"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "additionalFields": {
+          "caption": "={{ $('Build caption').item.json.caption }}",
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "f5",
+      "name": "Send to Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        880,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE jobs SET status = 'pending_review'\nWHERE id = $1::bigint AND status = 'tailored'\nRETURNING id, title;",
+        "options": {
+          "queryReplacement": "={{ [ $('Build caption').item.json.job_id ] }}"
+        }
+      },
+      "id": "f6",
+      "name": "Mark as sent",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1100,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "8:30 and 19:30": {
+      "main": [
+        [
+          {
+            "node": "Get tailored jobs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get tailored jobs": {
+      "main": [
+        [
+          {
+            "node": "Build caption",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build caption": {
+      "main": [
+        [
+          {
+            "node": "Read CV PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read CV PDF": {
+      "main": [
+        [
+          {
+            "node": "Send to Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send to Telegram": {
+      "main": [
+        [
+          {
+            "node": "Mark as sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Bogota"
+  }
+}

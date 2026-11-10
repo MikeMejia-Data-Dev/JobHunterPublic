@@ -1,0 +1,86 @@
+name: aluna-n8n # fixed project name: keeps the same volumes even if the folder is renamed
+
+services:
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:latest
+    container_name: n8n
+    restart: unless-stopped
+
+    ports:
+      - "5678:5678"
+
+    environment:
+      - TZ=${TZ}
+      - GENERIC_TIMEZONE=${GENERIC_TIMEZONE}
+      - N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=true
+      - N8N_RUNNERS_ENABLED=true
+      - N8N_SECURE_COOKIE=true
+      # Public URL so webhooks (Telegram buttons, etc.) point to ngrok, not localhost
+      - N8N_HOST=${NGROK_DOMAIN}
+      - N8N_PROTOCOL=https
+      - WEBHOOK_URL=https://${NGROK_DOMAIN}/
+      - N8N_PROXY_HOPS=1
+      #Folder n8n may read/write files in (tailored CVs go to /files/cvs)
+      - N8N_RESTRUCT_FILE_ACCESS_TO=/home/node/.n8n-files
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./files:/home/node/.n8n-files
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+      gotenberg:
+        condition: service_started
+
+  ngrok:
+    image: ngrok/ngrok:latest
+    container_name: ngrok
+    restart: unless-stopped
+
+    command:
+      - "http"
+      - "n8n:5678"
+      - "--url=${NGROK_DOMAIN}"
+      - "--log=stdout"
+
+    environment:
+      - NGROK_AUTHTOKEN=${NGROK_AUTHTOKEN}
+
+    depends_on:
+      - n8n
+
+  # Job tracker database (used by the workflows, not by n8n itself)
+  postgres:
+    image: postgres:16
+    container_name: jobs_postgres
+    restart: unless-stopped
+
+    environment:
+      - POSTGRES_DB=${JOBS_DB_NAME}
+      - POSTGRES_USER=${JOBS_DB_USER}
+      - POSTGRES_PASSWORD=${JOBS_DB_PASSWORD}
+      - TZ=${TZ}
+
+    # Only reachable from your own machine (DBeaver, psql). 5433 avoids clashing with a local Postgres.
+    ports:
+      - "127.0.0.1:5433:5432"
+
+    volumes:
+      - jobs_pg_data:/var/lib/postgresql/data
+      - ./init:/docker-entrypoint-initdb.d:ro
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${JOBS_DB_USER} -d ${JOBS_DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # HTML -> PDF rendering for tailored CVs (internal only, n8n calls http://gotenberg:3000)
+  gotenberg:
+    image: gotenberg/gotenberg:8
+    container_name: gotenberg
+    restart: unless-stopped
+
+volumes:
+  n8n_data:
+  jobs_pg_data:

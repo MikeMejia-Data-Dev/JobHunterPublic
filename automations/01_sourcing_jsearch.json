@@ -1,0 +1,164 @@
+{
+  "name": "Job Copilot - 01 Sourcing (JSearch)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 7 * * *"
+            }
+          ]
+        }
+      },
+      "id": "a1",
+      "name": "Every day 7:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Edit this list to change what the workflow searches for.\n// Each search costs 1 API request (free plan: 200/month). 3 searches/day = ~90/month.\nconst searches = [\n  { query: 'data analyst in Medellín, Colombia', country: 'co' },\n  { query: 'analista de datos in Colombia',      country: 'co' },\n  { query: 'junior data analyst remote Latin America', country: 'us' },\n];\n\nreturn searches.map(s => ({\n  json: { ...s, page: 1, num_pages: 1, date_posted: '3days' },\n}));\n"
+      },
+      "id": "a2",
+      "name": "Search list",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://api.openwebninja.com/jsearch/search",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "query",
+              "value": "={{ $json.query }}"
+            },
+            {
+              "name": "country",
+              "value": "={{ $json.country }}"
+            },
+            {
+              "name": "page",
+              "value": "={{ $json.page }}"
+            },
+            {
+              "name": "num_pages",
+              "value": "={{ $json.num_pages }}"
+            },
+            {
+              "name": "date_posted",
+              "value": "={{ $json.date_posted }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a3",
+      "name": "JSearch API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        0
+      ],
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "jsCode": "// Turns every JSearch response into one clean list of jobs.\nconst jobs = [];\n\nfor (const item of $input.all()) {\n  const data = Array.isArray(item.json.data) ? item.json.data : [];\n\n  for (const j of data) {\n    if (!j.job_title || !j.employer_name || !j.job_apply_link) continue;\n\n    const location =\n      j.job_location ||\n      [j.job_city, j.job_state, j.job_country].filter(Boolean).join(', ') ||\n      null;\n\n    jobs.push({\n      external_id: j.job_id ?? null,\n      title: String(j.job_title).trim(),\n      company: String(j.employer_name).trim(),\n      location,\n      work_mode: j.job_is_remote ? 'remote' : 'unknown',\n      url: j.job_apply_link,\n      description: j.job_description ?? null,\n      posted_at: j.job_posted_at_datetime_utc ?? null,\n      publisher: j.job_publisher ?? null,\n      salary_min: j.job_min_salary ?? null,\n      salary_max: j.job_max_salary ?? null,\n      salary_currency: j.job_salary_currency ?? null,\n      salary_period: j.job_salary_period ?? null,\n    });\n  }\n}\n\nreturn [{ json: { jobs, fetched: jobs.length } }];\n"
+      },
+      "id": "a4",
+      "name": "Normalize jobs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH incoming AS (\n  SELECT *\n  FROM jsonb_to_recordset($1::jsonb) AS x(\n    external_id text, title text, company text, location text, work_mode text,\n    url text, description text, posted_at timestamptz, publisher text,\n    salary_min numeric, salary_max numeric, salary_currency text, salary_period text\n  )\n)\nINSERT INTO jobs (\n  job_hash, source, external_id, title, company, location, work_mode, url,\n  description, posted_at, publisher, salary_min, salary_max, salary_currency, salary_period\n)\nSELECT\n  md5(lower(trim(company)) || '|' || lower(trim(title)) || '|' || lower(coalesce(trim(location), ''))),\n  'jsearch', external_id, title, company, location, work_mode, url,\n  description, posted_at, publisher, salary_min, salary_max, salary_currency, salary_period\nFROM incoming\nON CONFLICT (job_hash) DO NOTHING\nRETURNING id, title, company, publisher;",
+        "options": {
+          "queryReplacement": "={{ [ JSON.stringify($json.jobs) ] }}"
+        }
+      },
+      "id": "a5",
+      "name": "Save new jobs",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        880,
+        0
+      ],
+      "alwaysOutputData": true
+    }
+  ],
+  "connections": {
+    "Every day 7:00": {
+      "main": [
+        [
+          {
+            "node": "Search list",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search list": {
+      "main": [
+        [
+          {
+            "node": "JSearch API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "JSearch API": {
+      "main": [
+        [
+          {
+            "node": "Normalize jobs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize jobs": {
+      "main": [
+        [
+          {
+            "node": "Save new jobs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Bogota"
+  }
+}

@@ -1,0 +1,423 @@
+{
+  "_meta": {
+    "version": 3,
+    "updated": "2026-11-07",
+    "purpose": "Single source of truth for job matching and CV tailoring. The AI may reorder and rephrase this content, but must never add skills, tools, employers, dates or numbers that are not here."
+  },
+  "personal": {
+    "full_name": "Here your full name",
+    "headline": {
+      "en": "Junior Data Analyst",
+      "es": "Analista de Datos Junior"
+    },
+    "location": "Medellín, Colombia",
+    "phone": "Here your phone",
+    "email": "Here your email",
+    "linkedin": "Here your LinkedIn URL",
+    "github": "Here your GitHub URL"
+  },
+  "summary": {
+    "en": "Junior data analyst trained in data analytics (Riwi) and software development (SENA). I build ETL pipelines with Python, SQL and Airflow, and analyze data with pandas and SQL to turn it into KPIs and visualizations that support decision-making. I work with PostgreSQL and Docker, and automate workflows with n8n and AI.",
+    "es": "Analista de datos junior con formación en análisis de datos (Riwi) y desarrollo de software (SENA). Construyo pipelines ETL con Python, SQL y Airflow, y analizo datos con pandas y SQL para convertirlos en KPIs y visualizaciones que apoyan la toma de decisiones. Trabajo con PostgreSQL y Docker, y automatizo procesos con n8n e IA."
+  },
+  "skills": {
+    "_scale": "1 = basic exposure, 2 = used in guided projects, 3 = used independently in projects, 4 = strong, 5 = expert.",
+    "items": [
+      {
+        "name": "SQL",
+        "category": "analytics",
+        "level": 3,
+        "keywords": [
+          "SQL",
+          "PostgreSQL",
+          "JOINs",
+          "window functions",
+          "CTEs"
+        ]
+      },
+      {
+        "name": "PostgreSQL",
+        "category": "analytics",
+        "level": 3,
+        "keywords": [
+          "PostgreSQL",
+          "Postgres"
+        ]
+      },
+      {
+        "name": "Python",
+        "category": "programming",
+        "level": 3,
+        "keywords": [
+          "Python",
+          "pandas",
+          "NumPy",
+          "Matplotlib",
+          "seaborn",
+          "scikit-learn",
+          "Jupyter"
+        ]
+      },
+      {
+        "name": "Power BI",
+        "category": "bi",
+        "level": 2,
+        "keywords": [
+          "Power BI",
+          "DAX",
+          "dashboards",
+          "drill-through"
+        ]
+      },
+      {
+        "name": "Excel",
+        "category": "bi",
+        "level": 2,
+        "keywords": [
+          "Excel",
+          "pivot tables",
+          "Power Query",
+          "VLOOKUP",
+          "XLOOKUP"
+        ]
+      },
+      {
+        "name": "EDA and descriptive statistics",
+        "category": "analytics",
+        "level": 3,
+        "keywords": [
+          "EDA",
+          "statistics",
+          "data analysis",
+          "correlation analysis",
+          "Pearson",
+          "Spearman"
+        ]
+      },
+      {
+        "name": "KPI design and data storytelling",
+        "category": "bi",
+        "level": 3,
+        "keywords": [
+          "KPIs",
+          "metrics",
+          "storytelling",
+          "reporting"
+        ]
+      },
+      {
+        "name": "ETL processes",
+        "category": "data_engineering",
+        "level": 3,
+        "keywords": [
+          "ETL",
+          "data cleaning",
+          "data validation",
+          "Parquet"
+        ]
+      },
+      {
+        "name": "Data modeling",
+        "category": "data_engineering",
+        "level": 2,
+        "keywords": [
+          "data modeling",
+          "data warehouse",
+          "star schema"
+        ]
+      },
+      {
+        "name": "Apache Airflow",
+        "category": "data_engineering",
+        "level": 2,
+        "keywords": [
+          "Airflow",
+          "DAGs",
+          "orchestration"
+        ]
+      },
+      {
+        "name": "Docker",
+        "category": "data_engineering",
+        "level": 2,
+        "keywords": [
+          "Docker",
+          "Docker Compose"
+        ]
+      },
+      {
+        "name": "n8n",
+        "category": "automation",
+        "level": 2,
+        "keywords": [
+          "n8n",
+          "workflow automation",
+          "webhooks"
+        ]
+      },
+      {
+        "name": "OpenAI API",
+        "category": "automation",
+        "level": 3,
+        "keywords": [
+          "OpenAI",
+          "LLM",
+          "AI"
+        ]
+      },
+      {
+        "name": "Git & GitHub",
+        "category": "tools",
+        "level": 3,
+        "keywords": [
+          "Git",
+          "GitHub",
+          "version control"
+        ]
+      },
+      {
+        "name": "AWS",
+        "category": "tools",
+        "level": 1,
+        "keywords": [
+          "AWS",
+          "S3",
+          "IAM",
+          "EC2"
+        ]
+      }
+    ]
+  },
+  "projects": [
+    {
+      "id": "happiness_vs_youtube",
+      "name": {
+        "en": "Happiness vs. YouTube: Country-Level Analysis",
+        "es": "Felicidad vs. YouTube: análisis por país"
+      },
+      "org": null,
+      "dates": null,
+      "url": "https://github.com/your-username/HappinessVSYoutube",
+      "stack": [
+        "Python",
+        "pandas",
+        "seaborn",
+        "matplotlib",
+        "scikit-learn",
+        "Jupyter"
+      ],
+      "bullets": {
+        "en": [
+          "Merged and cleaned two public datasets (YouTube reach 2024 and World Happiness Report 2024), matching 80 countries and documenting name mismatches across sources.",
+          "Found a moderate positive correlation between YouTube penetration and happiness (Pearson r ≈ 0.53, Spearman ρ ≈ 0.57), and explicitly communicated that it does not imply causation.",
+          "Built a Digital Opportunity Index (happiness + GDP − penetration, normalized with MinMaxScaler) to rank markets across 79 countries.",
+          "Analyzed 17 Latin American markets and delivered 4 visualizations and a top-10 opportunity table."
+        ],
+        "es": [
+          "Integré y limpié dos datasets públicos (alcance de YouTube 2024 y World Happiness Report 2024), uniendo 80 países y documentando los nombres que no coincidían entre fuentes.",
+          "Encontré una correlación positiva moderada entre la penetración de YouTube y la felicidad (Pearson r ≈ 0,53; Spearman ρ ≈ 0,57) y comuniqué explícitamente que no implica causalidad.",
+          "Construí un Índice de Oportunidad Digital (felicidad + PIB − penetración, normalizados con MinMaxScaler) para priorizar mercados entre 79 países.",
+          "Analicé 17 mercados de Latinoamérica y entregué 4 visualizaciones y una tabla top 10 de oportunidades."
+        ]
+      }
+    },
+    {
+      "id": "shopwave_elt",
+      "name": {
+        "en": "Layered E-commerce ELT Pipeline (ShopWave)",
+        "es": "Pipeline ELT en capas para e-commerce (ShopWave)"
+      },
+      "org": null,
+      "dates": null,
+      "url": "https://github.com/your-username/ELT_Project",
+      "stack": [
+        "PostgreSQL",
+        "Python",
+        "pandas",
+        "psycopg2",
+        "SQL"
+      ],
+      "bullets": {
+        "en": [
+          "Designed an ELT pipeline with a layered RAW, STAGING and MARTS architecture on the public Olist e-commerce dataset (orders, order items, customers and products).",
+          "Implemented bulk loading into PostgreSQL with the COPY command via psycopg2, keeping raw data unchanged for auditability and reproducibility.",
+          "Profiled the data before transforming it to detect nulls, duplicates, malformed records and timestamp issues.",
+          "Modeled business tables for sales by customer, product and category to support reporting and KPIs."
+        ],
+        "es": [
+          "Diseñé un pipeline ELT con arquitectura en capas RAW, STAGING y MARTS sobre el dataset público de e-commerce de Olist (pedidos, ítems, clientes y productos).",
+          "Implementé la carga masiva a PostgreSQL con el comando COPY vía psycopg2, conservando los datos crudos sin modificar para auditoría y reproducibilidad.",
+          "Perfilé los datos antes de transformarlos para detectar nulos, duplicados, registros mal formados y problemas en fechas.",
+          "Modelé tablas de negocio de ventas por cliente, producto y categoría para reportes y KPIs."
+        ]
+      }
+    },
+    {
+      "id": "retail_etl",
+      "name": {
+        "en": "Retail Sales ETL Pipeline",
+        "es": "Pipeline ETL de ventas retail"
+      },
+      "org": null,
+      "dates": "2026",
+      "stack": [
+        "Python",
+        "pandas",
+        "Apache Airflow",
+        "PostgreSQL",
+        "Docker"
+      ],
+      "bullets": {
+        "en": [
+          "Built an Airflow-orchestrated ETL pipeline (extract, transform, validate, load) that processes 540,000+ transactions into a PostgreSQL data warehouse.",
+          "Defined documented cleaning rules: synthetic IDs for unidentified customers, canonical product descriptions, and deduplication of overlapping records across sources.",
+          "Normalized columns, dates and null values, and exported clean datasets to Parquet."
+        ],
+        "es": [
+          "Construí un pipeline ETL orquestado con Airflow (extracción, transformación, validación y carga) que procesa más de 540.000 transacciones hacia un data warehouse en PostgreSQL.",
+          "Definí reglas de limpieza documentadas: IDs sintéticos para clientes sin identificar, descripción canónica por producto y deduplicación de registros solapados entre fuentes.",
+          "Normalicé columnas, fechas y valores nulos, y exporté datasets limpios en formato Parquet."
+        ]
+      }
+    },
+    {
+      "id": "sql_python_analysis",
+      "name": {
+        "en": "Data Analysis with SQL and Python",
+        "es": "Análisis de datos con SQL y Python"
+      },
+      "org": "Riwi",
+      "dates": "2025–2026",
+      "stack": [
+        "PostgreSQL",
+        "pandas",
+        "Git"
+      ],
+      "bullets": {
+        "en": [
+          "Wrote complex SQL queries with multi-table JOINs and window functions to produce business reports.",
+          "Cleaned, transformed and validated data with pandas and SQL, and automated recurring report generation.",
+          "Managed versions and deliveries with Git and GitHub."
+        ],
+        "es": [
+          "Escribí consultas SQL complejas con múltiples JOIN y funciones de ventana para generar reportes de negocio.",
+          "Limpié, transformé y validé datos con pandas y SQL, y automaticé la generación de reportes recurrentes.",
+          "Gestioné versiones y entregas con Git y GitHub."
+        ]
+      }
+    },
+    {
+      "id": "job_hunting_copilot",
+      "name": {
+        "en": "Job Hunting Copilot (in progress)",
+        "es": "Job Hunting Copilot (en desarrollo)"
+      },
+      "org": null,
+      "dates": "2026",
+      "stack": [
+        "n8n",
+        "OpenAI API",
+        "PostgreSQL",
+        "Docker"
+      ],
+      "bullets": {
+        "en": [
+          "Automation that collects job postings, scores them with AI against a structured profile, and tailors the CV to each role.",
+          "Designed the PostgreSQL tracking schema, with triggers that log each job's status history."
+        ],
+        "es": [
+          "Automatización que recopila ofertas de empleo, las puntúa con IA según un perfil estructurado y adapta el CV a cada vacante.",
+          "Diseñé el esquema de seguimiento en PostgreSQL con triggers que registran el historial de estados de cada vacante."
+        ]
+      }
+    }
+  ],
+  "education": [
+    {
+      "title": {
+        "en": "Data Analytics Bootcamp",
+        "es": "Bootcamp de Análisis de Datos"
+      },
+      "institution": "Riwi",
+      "location": "Medellín",
+      "dates": "2025–2026"
+    },
+    {
+      "title": {
+        "en": "Technologist in Software Analysis and Development",
+        "es": "Tecnólogo en Análisis y Desarrollo de Software"
+      },
+      "institution": "SENA",
+      "dates": "2023–2025"
+    }
+  ],
+  "languages": [
+    {
+      "name": "Spanish",
+      "level": "native"
+    },
+    {
+      "name": "English",
+      "level": "B2"
+    }
+  ],
+  "preferences": {
+    "target_titles": [
+      "Data Analyst",
+      "Junior Data Analyst",
+      "Analista de Datos",
+      "BI Analyst",
+      "Business Intelligence Analyst",
+      "Reporting Analyst"
+    ],
+    "seniority": [
+      "junior",
+      "mid"
+    ],
+    "exclude_seniority": [
+      "senior",
+      "lead",
+      "principal",
+      "manager",
+      "head",
+      "director"
+    ],
+    "work_modes": [
+      {
+        "mode": "remote",
+        "scope": "international"
+      },
+      {
+        "mode": "hybrid",
+        "city": "Medellín"
+      }
+    ],
+    "application_languages": [
+      "es",
+      "en"
+    ],
+    "english_level": "B2",
+    "min_salary": {
+      "amount": 2500000,
+      "currency": "COP",
+      "period": "month"
+    },
+    "salary_unknown_policy": "keep",
+    "daily_review_limit": 10,
+    "deal_breakers": [
+      "Salary below 2,500,000 COP per month (when the salary is listed)",
+      "On-site only roles",
+      "Senior, lead or manager roles",
+      "Roles requiring native or C1+ English"
+    ],
+    "blacklist_companies": []
+  },
+  "tailoring_rules": [
+    "Never invent skills, tools, employers, certifications, dates or metrics.",
+    "Only use skills listed in skills.items; never raise a skill's level.",
+    "Reorder projects and bullets so the most relevant ones come first.",
+    "Mirror the job posting's terminology only when it describes something already in this profile.",
+    "Write the CV in the posting's language (es or en).",
+    "Keep the CV to one page."
+  ]
+}

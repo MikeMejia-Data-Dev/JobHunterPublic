@@ -1,0 +1,237 @@
+{
+  "name": "Job Copilot - 07 Weekly report & follow-ups",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "45 8 * * 1"
+            }
+          ]
+        }
+      },
+      "id": "h1",
+      "name": "Monday 8:45",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH ev AS (\n  SELECT job_id, new_status FROM job_events WHERE changed_at >= now() - interval '7 days'\n)\nSELECT\n  (SELECT count(*) FROM jobs WHERE found_at >= now() - interval '7 days')                         AS found,\n  (SELECT count(*) FROM jobs WHERE found_at >= now() - interval '7 days' AND source = 'jsearch')   AS from_jsearch,\n  (SELECT count(*) FROM jobs WHERE found_at >= now() - interval '7 days' AND source = 'linkedin_alert') AS from_linkedin,\n  (SELECT count(DISTINCT e.job_id) FROM ev e JOIN jobs j ON j.id = e.job_id\n     WHERE e.new_status = 'filtered_out' AND j.filter_reason NOT LIKE 'AI:%')                     AS rule_filtered,\n  (SELECT count(DISTINCT e.job_id) FROM ev e JOIN jobs j ON j.id = e.job_id\n     WHERE e.new_status = 'filtered_out' AND j.filter_reason LIKE 'AI:%')                         AS ai_filtered,\n  (SELECT count(DISTINCT job_id) FROM ev WHERE new_status = 'scored')                             AS scored,\n  (SELECT count(DISTINCT job_id) FROM ev WHERE new_status = 'tailored')                           AS tailored,\n  (SELECT count(DISTINCT job_id) FROM ev WHERE new_status = 'approved')                           AS approved,\n  (SELECT count(DISTINCT job_id) FROM ev WHERE new_status = 'skipped')                            AS skipped,\n  (SELECT count(DISTINCT job_id) FROM ev WHERE new_status = 'applied')                            AS applied,\n  (SELECT count(DISTINCT job_id) FROM ev WHERE new_status = 'interview')                          AS interviews,\n  (SELECT count(DISTINCT job_id) FROM ev WHERE new_status = 'rejected')                           AS rejections,\n  (SELECT count(DISTINCT job_id) FROM ev WHERE new_status = 'offer')                              AS offers,\n  (SELECT round(avg(match_score)) FROM jobs\n     WHERE match_score IS NOT NULL AND found_at >= now() - interval '7 days')                     AS avg_score,\n  (SELECT count(*) FROM jobs WHERE applied_at IS NOT NULL)                                        AS applied_total,\n  (SELECT count(DISTINCT j.id) FROM jobs j JOIN job_events e ON e.job_id = j.id\n     WHERE j.applied_at IS NOT NULL AND e.new_status IN ('interview','rejected','offer'))         AS answered_total,\n  (SELECT count(DISTINCT j.id) FROM jobs j JOIN job_events e ON e.job_id = j.id\n     WHERE j.applied_at IS NOT NULL AND e.new_status IN ('interview','offer'))                    AS interviews_total,\n  (SELECT coalesce(json_agg(r), '[]'::json) FROM (\n     SELECT filter_reason AS reason, count(*) AS n FROM jobs\n     WHERE status = 'filtered_out' AND found_at >= now() - interval '7 days'\n     GROUP BY 1 ORDER BY 2 DESC LIMIT 3) r)                                                       AS top_filters;",
+        "options": {}
+      },
+      "id": "h2",
+      "name": "Weekly numbers",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Formats the weekly report.\nconst CHAT_ID = 'YOUR_CHAT_ID';\nconst r = $input.first().json;\nconst n = v => Number(v ?? 0);\nconst pct = (a, b) => (n(b) ? Math.round(100 * n(a) / n(b)) + '%' : '—');\nconst filters = (r.top_filters ?? []).map(f => `   • ${f.reason}: ${f.n}`).join('\\n') || '   • none';\n\nconst text = [\n  `📊 Weekly report — Job Copilot`,\n  ``,\n  `🔎 Found: ${n(r.found)} (JSearch ${n(r.from_jsearch)} · LinkedIn ${n(r.from_linkedin)})`,\n  `🚫 Filtered: ${n(r.rule_filtered)} by rules · ${n(r.ai_filtered)} by AI`,\n  `⭐ Scored: ${n(r.scored)} (avg score ${r.avg_score ?? '—'})`,\n  `📄 CVs tailored: ${n(r.tailored)}`,\n  `✅ Approved: ${n(r.approved)} · ❌ Skipped: ${n(r.skipped)}`,\n  `📨 Applied: ${n(r.applied)}`,\n  `🎤 Interviews: ${n(r.interviews)} · 🙅 Rejections: ${n(r.rejections)} · 🎉 Offers: ${n(r.offers)}`,\n  ``,\n  `📈 All time: ${n(r.applied_total)} applications · response rate ${pct(r.answered_total, r.applied_total)} · interview rate ${pct(r.interviews_total, r.applied_total)}`,\n  ``,\n  `Top filter reasons this week:`,\n  filters,\n  ``,\n  n(r.found) === 0 ? `⚠️ No new jobs this week: check the sourcing workflows and your API quota.` :\n  n(r.approved) === 0 && n(r.tailored) > 0 ? `💡 You approved nothing this week. Is the score threshold too low?` : `Keep going, Here your name! 💪`,\n].join('\\n');\n\nreturn [{ json: { chat_id: CHAT_ID, text } }];\n"
+      },
+      "id": "h3",
+      "name": "Format report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chat_id }}",
+        "text": "={{ $json.text }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "disable_web_page_preview": true
+        }
+      },
+      "id": "h4",
+      "name": "Send report",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        660,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 * * *"
+            }
+          ]
+        }
+      },
+      "id": "i1",
+      "name": "Every day 9:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, title, company, url, status,\n       CASE WHEN status = 'applied' THEN (now()::date - applied_at::date)\n            ELSE (now()::date - reviewed_at::date) END AS days\nFROM jobs\nWHERE followup_sent_at IS NULL\n  AND (\n        (status = 'applied'  AND applied_at  <= now() - interval '7 days')\n     OR (status = 'approved' AND reviewed_at <= now() - interval '3 days')\n  )\nORDER BY status, days DESC\nLIMIT 15;",
+        "options": {}
+      },
+      "id": "i2",
+      "name": "Jobs to follow up",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Formats follow-up reminders (one message for all of them).\nconst CHAT_ID = 'YOUR_CHAT_ID';\nconst rows = $input.all().map(i => i.json).filter(r => r.id);\nconst applied = rows.filter(r => r.status === 'applied');\nconst approved = rows.filter(r => r.status === 'approved');\n\nconst lines = [`⏰ Follow-ups`];\nif (applied.length) {\n  lines.push('', `📨 Applied, no answer yet:`);\n  for (const r of applied) lines.push(`• Job ${r.id}: ${r.title} — ${r.company} (${r.days} days)`);\n  lines.push(`💡 A short follow-up message to the recruiter on LinkedIn can help. Tell me \"job X was rejected\" or \"job X: interview\" when you hear back.`);\n}\nif (approved.length) {\n  lines.push('', `✅ Approved but not marked as applied:`);\n  for (const r of approved) lines.push(`• Job ${r.id}: ${r.title} — ${r.company} (${r.days} days)\\n  ${r.url}`);\n  lines.push(`💡 Applied already? Tell me \"mark job X as applied\". Not interested anymore? \"skip job X\".`);\n}\n\nreturn [{ json: { chat_id: CHAT_ID, text: lines.join('\\n').slice(0, 4000), ids: rows.map(r => r.id) } }];\n"
+      },
+      "id": "i3",
+      "name": "Format follow-ups",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chat_id }}",
+        "text": "={{ $json.text }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "disable_web_page_preview": true
+        }
+      },
+      "id": "i4",
+      "name": "Send follow-ups",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        660,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE jobs SET followup_sent_at = now()\nWHERE id = ANY(string_to_array($1, ',')::bigint[])\nRETURNING id;",
+        "options": {
+          "queryReplacement": "={{ [ $('Format follow-ups').item.json.ids.join(',') ] }}"
+        }
+      },
+      "id": "i5",
+      "name": "Mark reminded",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        880,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Monday 8:45": {
+      "main": [
+        [
+          {
+            "node": "Weekly numbers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Weekly numbers": {
+      "main": [
+        [
+          {
+            "node": "Format report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format report": {
+      "main": [
+        [
+          {
+            "node": "Send report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Every day 9:00": {
+      "main": [
+        [
+          {
+            "node": "Jobs to follow up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Jobs to follow up": {
+      "main": [
+        [
+          {
+            "node": "Format follow-ups",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format follow-ups": {
+      "main": [
+        [
+          {
+            "node": "Send follow-ups",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send follow-ups": {
+      "main": [
+        [
+          {
+            "node": "Mark reminded",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Bogota"
+  }
+}

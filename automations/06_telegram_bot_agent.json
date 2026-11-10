@@ -1,0 +1,465 @@
+{
+  "name": "Job Copilot - 06 Telegram bot (buttons + agent)",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message",
+          "callback_query"
+        ],
+        "additionalFields": {}
+      },
+      "id": "g1",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Only answers YOUR chat. Everyone else is ignored.\nconst ALLOWED_CHAT_ID = 'YOUR_CHAT_ID';\n\nconst out = [];\nfor (const item of $input.all()) {\n  const u = item.json;\n  if (u.callback_query) {\n    const cq = u.callback_query;\n    const chatId = String(cq.message?.chat?.id ?? cq.from?.id ?? '');\n    if (chatId !== ALLOWED_CHAT_ID) continue;\n    const [decision, id] = String(cq.data ?? '').split(':');\n    if (!['apply', 'skip'].includes(decision) || !/^\\d+$/.test(id ?? '')) continue;\n    out.push({ json: { kind: 'button', chat_id: chatId, callback_id: cq.id, decision, job_id: Number(id) } });\n  } else if (u.message?.text) {\n    const chatId = String(u.message.chat.id);\n    if (chatId !== ALLOWED_CHAT_ID) continue;\n    out.push({ json: { kind: 'text', chat_id: chatId, text: u.message.text } });\n  }\n}\nreturn out;\n"
+      },
+      "id": "g2",
+      "name": "Only allowed chat",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "k1",
+              "leftValue": "={{ $json.kind }}",
+              "rightValue": "button",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "g3",
+      "name": "Button or text?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        440,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE jobs\nSET status = CASE WHEN $1 = 'apply' THEN 'approved' ELSE 'skipped' END,\n    reviewed_at = now()\nWHERE id = $2::bigint AND status = 'pending_review'\nRETURNING id, title, company, url, cover_letter, status;",
+        "options": {
+          "queryReplacement": "={{ [ $json.decision, $json.job_id ] }}"
+        }
+      },
+      "id": "g4",
+      "name": "Save decision",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        700,
+        0
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Builds the answer after a button press.\nconst btn = $('Only allowed chat').first().json;\nconst row = $input.first()?.json ?? {};\nlet text;\n\nif (!row.id) {\n  text = `ℹ️ Job ${btn.job_id} was already reviewed (or doesn't exist).`;\n} else if (row.status === 'approved') {\n  text = [\n    `✅ Approved: ${row.title} — ${row.company}`,\n    ``,\n    `👉 Apply here: ${row.url}`,\n    ``,\n    `📝 Cover letter (copy it if the form asks for one):`,\n    ``,\n    row.cover_letter ?? '(none)',\n    ``,\n    `When you've applied, tell me: \"mark job ${row.id} as applied\".`,\n  ].join('\\n');\n} else {\n  text = `❌ Skipped: ${row.title} — ${row.company}`;\n}\n\nreturn [{ json: { chat_id: btn.chat_id, callback_id: btn.callback_id, text: text.slice(0, 4000) } }];\n"
+      },
+      "id": "g5",
+      "name": "Build reply",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        920,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "callback",
+        "operation": "answerQuery",
+        "queryId": "={{ $json.callback_id }}",
+        "additionalFields": {
+          "text": "Saved ✔"
+        }
+      },
+      "id": "g6",
+      "name": "Answer button",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1140,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Build reply').item.json.chat_id }}",
+        "text": "={{ $('Build reply').item.json.text }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "disable_web_page_preview": true
+        }
+      },
+      "id": "g7",
+      "name": "Send decision reply",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1360,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.text }}",
+        "options": {
+          "systemMessage": "You are Michelle JH, the candidate's job-hunting assistant inside Telegram. The candidate is a junior data analyst in Medellín looking for junior/mid Data Analyst or BI Analyst roles (international remote, or hybrid in Medellín).\n\nHow to work:\n- Use your tools to answer anything about jobs, scores, statuses or stats. Never invent jobs, numbers, links or statuses: if a tool returns nothing, say so.\n- Only change a job's status when the candidate explicitly asks for that specific job. After a change, confirm what changed.\n- Reply in the language the candidate writes in (Spanish or English), briefly, in plain text without markdown tables. Use short lines and a few emojis at most.\n- When listing jobs, show: job ID, title, company, score and status.\n- Status meanings: found = new, filtered_out = rejected by rules or AI, scored = scored, tailored = CV ready, pending_review = sent to Telegram, approved = the candidate chose to apply, skipped = the candidate skipped it, applied, interview, rejected, offer.",
+          "maxIterations": 6
+        }
+      },
+      "id": "g8",
+      "name": "Michelle JH agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        700,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4.1-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-4.1-mini"
+        },
+        "options": {
+          "temperature": 0.2
+        }
+      },
+      "id": "g9",
+      "name": "OpenAI Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        560,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Only allowed chat').item.json.chat_id }}",
+        "contextWindowLength": 10
+      },
+      "id": "g10",
+      "name": "Memory",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        700,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Overview of the job pipeline: number of jobs and average score per status, plus jobs found in the last 24 hours.",
+        "operation": "executeQuery",
+        "query": "SELECT s.status, s.jobs, s.avg_score,\n       (SELECT count(*) FROM jobs WHERE found_at >= now() - interval '24 hours') AS found_last_24h\nFROM pipeline_summary s;",
+        "options": {}
+      },
+      "id": "g11",
+      "name": "pipeline_summary",
+      "type": "n8n-nodes-base.postgresTool",
+      "typeVersion": 2.5,
+      "position": [
+        840,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "List jobs filtered by status and minimum score, best first. Use status 'any' for all statuses.",
+        "operation": "executeQuery",
+        "query": "SELECT id, title, company, location, work_mode, match_score, status, found_at::date AS found\nFROM jobs\nWHERE ($1 = 'any' OR status = $1)\n  AND coalesce(match_score, 0) >= $2::numeric\nORDER BY match_score DESC NULLS LAST, found_at DESC\nLIMIT least(greatest(round($3::numeric)::int, 1), 20);",
+        "options": {
+          "queryReplacement": "={{ $fromAI('status', 'One of: any, found, filtered_out, scored, tailored, pending_review, approved, skipped, applied, interview, rejected, offer', 'string') }},{{ $fromAI('min_score', 'Minimum match score 0-100, use 0 for no minimum', 'number') }},{{ $fromAI('limit', 'How many jobs to return, 1-20', 'number') }}"
+        }
+      },
+      "id": "g12",
+      "name": "search_jobs",
+      "type": "n8n-nodes-base.postgresTool",
+      "typeVersion": 2.5,
+      "position": [
+        980,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Full details of one job by its ID: link, score, matched and missing skills, red flags, AI reasoning, why it was filtered, salary, review fixes and dates.",
+        "operation": "executeQuery",
+        "query": "SELECT id, title, company, location, work_mode, url, status, match_score, score_confidence,\n       matched_skills, missing_skills, red_flags, match_reasoning, filter_reason,\n       salary_min, salary_max, salary_currency, salary_period, publisher,\n       cv_file_name, tailored_cv->'checks' AS review_fixes, found_at, reviewed_at, applied_at\nFROM jobs\nWHERE id = $1::bigint;",
+        "options": {
+          "queryReplacement": "={{ $fromAI('job_id', 'The numeric job ID', 'number') }}"
+        }
+      },
+      "id": "g13",
+      "name": "job_details",
+      "type": "n8n-nodes-base.postgresTool",
+      "typeVersion": 2.5,
+      "position": [
+        1120,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Change the status of ONE job, only when the candidate explicitly asks. Allowed statuses: approved, skipped, applied, interview, rejected, offer. Returns nothing if the status is not allowed or the job does not exist.",
+        "operation": "executeQuery",
+        "query": "UPDATE jobs\nSET status = $2::text,\n    applied_at = CASE WHEN $2::text = 'applied' THEN now() ELSE applied_at END\nWHERE id = $1::bigint\n  AND $2::text IN ('approved', 'skipped', 'applied', 'interview', 'rejected', 'offer')\nRETURNING id, title, company, status;",
+        "options": {
+          "queryReplacement": "={{ $fromAI('job_id', 'The numeric job ID', 'number') }},{{ $fromAI('new_status', 'One of: approved, skipped, applied, interview, rejected, offer', 'string') }}"
+        }
+      },
+      "id": "g14",
+      "name": "update_job_status",
+      "type": "n8n-nodes-base.postgresTool",
+      "typeVersion": 2.5,
+      "position": [
+        1260,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "How many status changes happened in the last N days (for example how many jobs were applied to this week).",
+        "operation": "executeQuery",
+        "query": "SELECT new_status AS status, count(*) AS changes\nFROM job_events\nWHERE changed_at >= now() - (round($1::numeric)::int * interval '1 day')\nGROUP BY new_status\nORDER BY changes DESC;",
+        "options": {
+          "queryReplacement": "={{ $fromAI('days', 'Number of days to look back, for example 7', 'number') }}"
+        }
+      },
+      "id": "g15",
+      "name": "activity_stats",
+      "type": "n8n-nodes-base.postgresTool",
+      "typeVersion": 2.5,
+      "position": [
+        1400,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Only allowed chat').item.json.chat_id }}",
+        "text": "={{ String($json.output).slice(0, 4000) }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "g16",
+      "name": "Send agent reply",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1000,
+        400
+      ]
+    }
+  ],
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Only allowed chat",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Only allowed chat": {
+      "main": [
+        [
+          {
+            "node": "Button or text?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Button or text?": {
+      "main": [
+        [
+          {
+            "node": "Save decision",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Michelle JH agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save decision": {
+      "main": [
+        [
+          {
+            "node": "Build reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build reply": {
+      "main": [
+        [
+          {
+            "node": "Answer button",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Answer button": {
+      "main": [
+        [
+          {
+            "node": "Send decision reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Michelle JH agent": {
+      "main": [
+        [
+          {
+            "node": "Send agent reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Michelle JH agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "Michelle JH agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "pipeline_summary": {
+      "ai_tool": [
+        [
+          {
+            "node": "Michelle JH agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "search_jobs": {
+      "ai_tool": [
+        [
+          {
+            "node": "Michelle JH agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "job_details": {
+      "ai_tool": [
+        [
+          {
+            "node": "Michelle JH agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "update_job_status": {
+      "ai_tool": [
+        [
+          {
+            "node": "Michelle JH agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "activity_stats": {
+      "ai_tool": [
+        [
+          {
+            "node": "Michelle JH agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Bogota"
+  }
+}
